@@ -351,15 +351,23 @@ robust even to a constant bias. Software validation against `hqc128_ref.py` reco
 
 ### 4.5.2 Figures
 
+> **Note — consistent axis.** Figs 2, 3 and 6 are all generated from the **same**
+> real 2500-trace device pool (`learncurve_2026-08-06_10-16-15/raw_pool.npz`,
+> 16 250 samples @ 1.25 GS/s) via `plot_paper_figs.py`, so they share one identical
+> time axis (µs) and peak location (8.31 µs). A separate larger campaign (≈19 k
+> traces @ 2.5 GS/s) reached peak |t| ≈ 72; we use the unified 2500-trace set here
+> for cross-figure consistency.
+
 **Fig. 2 — Leakage detection (TVLA).** Fixed-vs-random `m′` Welch t-test over a full
-G execution (~19 k traces). Leakage is confined to the Keccak region and reaches
-**peak |t| ≈ 72.8 ≫ 4.5**, proving a strong, exploitable, message-dependent leak.
+G execution. Leakage is confined to the Keccak region and reaches **peak |t| ≈ 28
+≫ 4.5** on the 2500-trace pool, proving a strong, exploitable, message-dependent leak.
 
 ![First-order TVLA](figures/fig2_tvla.png)
 
 **Fig. 3 — Single-trace oracle.** Projecting each held-out trace onto the LDA template
-gives two **cleanly separated** clusters (`m′=0` vs `m′≠0`) — **100 % single-trace
-accuracy**. This is the binary PC oracle.
+gives two **cleanly separated** clusters (`m′=0` vs `m′≠0`) — **98.4 % single-trace
+accuracy** at ~1250 training traces (consistent with the learning curve: 99 % needs
+1200). This is the binary PC oracle.
 
 ![Single-trace oracle histogram](figures/fig3_oracle_hist.png)
 
@@ -380,8 +388,9 @@ attack rides on a handful of samples; even a single POI already gives ~70 %.
 data-independent Keccak signal dominates; yellow band marks the leak region). Middle:
 zoom where the `m′=0` (blue) and `m′≠0` (red) means **visibly diverge**, and their
 difference (green) dips ~2000 ADC exactly at the POIs. Bottom: global Welch |t|
-(peak ≈ 28) with the top POIs. **A plain difference-of-means already separates the two
-classes — no belief propagation or factor graph.**
+(peak ≈ 28) with the top POIs. Time axis in µs, identical to Figs 2–3. **A plain
+difference-of-means already separates the two classes — no belief propagation or
+factor graph.**
 
 ![Class-mean traces](figures/fig6_mean_traces.png)
 
