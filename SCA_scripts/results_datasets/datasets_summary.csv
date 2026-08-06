@@ -1,0 +1,3 @@
+dataset,n_traces,samples,poi_k,peak_abs_t,train_acc,test_acc,tp,tn,fp,fn
+artificial_m0_vs_m1,2000,95250,20,25.382,1.0,1.0,255,245,0,0
+honest_0_vs_failure,2000,95250,10,20.731,0.742,0.724,197,165,76,62

@@ -1,0 +1,12 @@
+metric,value
+dataset,honest_0_vs_failure
+n_traces,2000
+samples,95250
+poi_k,10
+peak_abs_t,20.731
+train_acc,0.742
+test_acc,0.724
+tp,197
+tn,165
+fp,76
+fn,62

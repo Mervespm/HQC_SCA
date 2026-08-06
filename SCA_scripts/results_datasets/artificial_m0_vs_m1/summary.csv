@@ -1,0 +1,12 @@
+metric,value
+dataset,artificial_m0_vs_m1
+n_traces,2000
+samples,95250
+poi_k,20
+peak_abs_t,25.382
+train_acc,1.0
+test_acc,1.0
+tp,255
+tn,245
+fp,0
+fn,0
