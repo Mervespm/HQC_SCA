@@ -35,15 +35,26 @@ from tvlaCalc import TVLACalc
 
 # =============================== SETTINGS =============================== #
 N_TRACES    = 60000      # total traces to try to collect (Ctrl+C to stop early)
-RAW_POOL    = 20000      # how many raw traces to keep in RAM for template/oracle
+RAW_POOL    = 6000       # MAX raw traces kept in RAM for template/oracle;
+                         # auto-capped further by RAW_RAM_BUDGET_MB below.
+RAW_RAM_BUDGET_MB = 400  # hard ceiling on the raw-pool RAM (float32). At high
+                         # sample counts the effective pool shrinks to fit this.
 EXAMPLE_N   = 8          # example raw traces saved per class (for the trace plot)
 TEST_FRAC   = 0.2        # fraction of the raw pool used as held-out oracle test
 N_POI       = 40         # leaking samples used for the oracle projection
 M0, M1      = 0, 1       # the two message classes
-FLUSH_EVERY = 5000       # write CSVs to disk every this many traces (crash-safe)
-SAVE_RAW_NPZ = True      # also dump the raw pool as float32 .npz (bigger file)
+FLUSH_EVERY = 1000       # write CSVs to disk every this many traces (crash-safe)
+SAVE_RAW_NPZ = False     # dump the raw pool as float32 .npz? OFF by default --
+                         # at 50k samples/trace this file is huge. CSVs already
+                         # hold everything the plots need. Turn on only if small.
 OUT_ROOT    = os.path.join(os.path.dirname(__file__), "PowerTrace_HQC_G")
 # ====================================================================== #
+
+
+def effective_raw_pool(n_samples):
+    """Shrink RAW_POOL so the float32 raw buffer stays under RAW_RAM_BUDGET_MB."""
+    max_by_ram = int(RAW_RAM_BUDGET_MB * 1024 * 1024 / (n_samples * 4))
+    return max(200, min(RAW_POOL, max_by_ram))
 
 
 def build_template(X, y, k):
@@ -148,13 +159,21 @@ def main():
           f"(Ctrl+C to stop & save).")
 
     tv = TVLACalc(ns)
-    raw = np.empty((RAW_POOL, ns), dtype=np.float32)
-    labels = np.empty(RAW_POOL, dtype=np.int8)
+    pool = effective_raw_pool(ns)
+    raw_mb = pool * ns * 4 / 1024 / 1024
+    print(f"Raw pool: keeping up to {pool} traces in RAM (~{raw_mb:.0f} MB) "
+          f"for the oracle/example plots; TVLA uses all {N_TRACES} incrementally.")
+    if pool < RAW_POOL:
+        print(f"  (RAW_POOL {RAW_POOL} capped to {pool} to stay under "
+              f"{RAW_RAM_BUDGET_MB} MB at {ns} samples/trace)")
+    raw = np.empty((pool, ns), dtype=np.float32)
+    labels = np.empty(pool, dtype=np.int8)
     n_raw = 0
     meta = dict(created=stamp, n_samples=ns, target="HQC-G (SHAKE256)",
                 sample_rate_hz=getattr(scope, "fs", None),
                 settings=dict(N_TRACES=N_TRACES, RAW_POOL=RAW_POOL,
-                              N_POI=N_POI, TEST_FRAC=TEST_FRAC, M0=M0, M1=M1))
+                              raw_pool_effective=pool, N_POI=N_POI,
+                              TEST_FRAC=TEST_FRAC, M0=M0, M1=M1))
 
     try:
         for i in tqdm(range(N_TRACES), desc="collect"):
@@ -163,7 +182,7 @@ def main():
             run_one_g(target, M0 if coin == 0 else M1)
             trace, _ = scope.read()
             tv.addTrace(trace, coin)
-            if n_raw < RAW_POOL:          # keep a raw pool for template/examples
+            if n_raw < pool:              # keep a raw pool for template/examples
                 raw[n_raw] = trace
                 labels[n_raw] = coin
                 n_raw += 1
