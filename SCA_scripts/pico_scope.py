@@ -20,6 +20,7 @@ Keccak-f[1600] permutation dominates). We capture TOTAL_CORE_CYCLES cycles with
 a margin so the whole leaking window plus a little tail always fits.
 """
 import ctypes
+import atexit
 from time import sleep
 
 import numpy as np
@@ -56,6 +57,20 @@ COUPLING = {"AC": enums.PICO_COUPLING["PICO_AC"],
             "DC": enums.PICO_COUPLING["PICO_DC"],
             "DC50": enums.PICO_COUPLING["PICO_DC_50OHM"]}
 RESMAP = {"8BIT": "PICO_DR_8BIT", "10BIT": "PICO_DR_10BIT", "12BIT": "PICO_DR_12BIT"}
+
+
+class ScopeReadError(RuntimeError):
+    """A PicoSDK GetValues/RunBlock returned a non-OK status. Carries the raw
+    numeric status so unknown codes (missing from picosdk's lookup table, which
+    would otherwise KeyError) still produce a clean, catchable error."""
+    def __init__(self, status):
+        self.status = status
+        try:
+            from picosdk.constants import PICO_STATUS_LOOKUP
+            name = PICO_STATUS_LOOKUP.get(status, f"UNKNOWN(0x{status:04X}={status})")
+        except Exception:
+            name = f"0x{status:04X}={status}"
+        super().__init__(f"PicoSDK status {name}")
 
 
 class Scope:
@@ -148,6 +163,12 @@ class Scope:
                        ctypes.byref(self.bufB), ctypes.byref(self.bufBm),
                        self.n_samples, self.i16, 0, self.raw, add))
 
+        # Always release the USB handle on interpreter exit -- even if a script
+        # crashes mid-capture. Without this a crash leaves the 6000-series in a
+        # hung "Unknown" USB state that needs a physical power-cycle to clear.
+        self._closed = False
+        atexit.register(self.close)
+
     def arm(self):
         """Start a block capture (returns immediately; trigger fires it)."""
         ti = ctypes.c_double(0)
@@ -155,26 +176,61 @@ class Scope:
                                           self.timebase, ctypes.byref(ti),
                                           0, None, None))
 
-    def read(self):
-        """Wait for the trigger, then return (power_A, trig_B) raw-ADC arrays."""
-        ready = ctypes.c_int16(0)
-        waited = 0.0
-        ps.ps6000aIsReady(self.handle, ctypes.byref(ready))
-        while ready.value == 0:
-            sleep(0.001); waited += 0.001
-            if waited > CAPTURE_TIMEOUT_S:
-                ps.ps6000aStop(self.handle)
-                raise TimeoutError("trigger never fired -- adjust B settings")
-            ps.ps6000aIsReady(self.handle, ctypes.byref(ready))
+    def _get_values(self):
+        """One GetValues call; raise a clean error instead of a KeyError on an
+        unknown PicoSDK status (the stock assert_pico_ok KeyErrors on codes that
+        aren't in its lookup table, e.g. 20496, which then crashes the capture)."""
         n = ctypes.c_uint64(self.n_samples)
         ov = ctypes.c_int16(0)
-        assert_pico_ok(ps.ps6000aGetValues(self.handle, 0, ctypes.byref(n), 1,
-                                           self.raw, 0, ctypes.byref(ov)))
-        power = np.array(self.bufA, dtype=np.float64)
-        trig = np.array(self.bufB, dtype=np.float64)
-        return power, trig
+        status = ps.ps6000aGetValues(self.handle, 0, ctypes.byref(n), 1,
+                                     self.raw, 0, ctypes.byref(ov))
+        if status != 0:
+            raise ScopeReadError(status)
+
+    def read(self, retries=3):
+        """Wait for the trigger, then return (power_A, trig_B) raw-ADC arrays.
+
+        Transient device errors (a stray PicoSDK status, a missed trigger) are
+        retried up to `retries` times by re-arming, instead of crashing and
+        losing the whole capture. Only a persistent failure raises.
+        """
+        for attempt in range(retries + 1):
+            try:
+                ready = ctypes.c_int16(0)
+                waited = 0.0
+                ps.ps6000aIsReady(self.handle, ctypes.byref(ready))
+                while ready.value == 0:
+                    sleep(0.001); waited += 0.001
+                    if waited > CAPTURE_TIMEOUT_S:
+                        ps.ps6000aStop(self.handle)
+                        raise TimeoutError("trigger never fired -- adjust B settings")
+                    ps.ps6000aIsReady(self.handle, ctypes.byref(ready))
+                self._get_values()
+                power = np.array(self.bufA, dtype=np.float64)
+                trig = np.array(self.bufB, dtype=np.float64)
+                return power, trig
+            except (ScopeReadError, TimeoutError) as e:
+                if attempt >= retries:
+                    raise
+                # transient: stop, re-arm, and try again
+                try:
+                    ps.ps6000aStop(self.handle)
+                except Exception:
+                    pass
+                sleep(0.05)
+                self.arm()
 
     def close(self):
-        """Stop and disconnect the PicoScope."""
-        ps.ps6000aStop(self.handle)
-        ps.ps6000aCloseUnit(self.handle)
+        """Stop and disconnect the PicoScope. Idempotent and exception-safe so
+        it is always safe to call from a finally block or atexit."""
+        if getattr(self, "_closed", False):
+            return
+        self._closed = True
+        try:
+            ps.ps6000aStop(self.handle)
+        except Exception:
+            pass
+        try:
+            ps.ps6000aCloseUnit(self.handle)
+        except Exception:
+            pass
