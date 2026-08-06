@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Heavy FPGA build artifacts / cloned RTL build trees (kept local, not on GitHub)
+syn/
+sim_g/
+sim_gt/
+hdl_tb/
+*.bit
+*.bin
+*.mcs
+*.ltx
+
+# Large raw capture blobs — keep the CSVs (plot-ready), drop the bulky binaries.
+# Comment these out if you DO want full raw traces on GitHub (use Git LFS).
+*.npz
+*.pkl
+
+# OS cruft
+Thumbs.db
+.DS_Store

@@ -1,0 +1,4 @@
+traces 14089  (m0 n=7030, m1 n=7059)
+first-order peak |t| 27.2 at sample 424, 98 samples > 4.5
+conservative single-POI oracle acc 59.05%
+20-POI matched-filter oracle acc   75.92%

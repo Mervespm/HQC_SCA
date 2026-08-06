@@ -1,0 +1,4 @@
+accuracy 66.40 %
+peak |t| 8.1 at sample 424
+POIs [242, 294, 299, 301, 306, 315, 351, 362, 377, 419, 424, 425, 426, 429, 430, 431, 435, 436, 441, 446]
+too weak; check scope range / trigger alignment
