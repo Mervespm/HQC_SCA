@@ -29,24 +29,35 @@ from picosdk.ps6000a import ps6000a as ps
 from picosdk.PicoDeviceEnums import picoEnum as enums
 from picosdk.functions import assert_pico_ok, mV2adc
 
+
 # =============================== SETTINGS =============================== #
-RESOLUTION    = "8BIT"      # "8BIT" / "10BIT" / "12BIT"
-# ---- capture length from the core-cycle count (same formula as HMAC rig) ----
-TARGET_FREQ_HZ    = 10e6     # FPGA core clock
-TOTAL_CORE_CYCLES = 130      # HQC-G Keccak compute length (~96 cyc + margin/tail)
-SAMPLING_HZ       = 156e6*6 # desired sampling rate (ACTUAL is queried from device)
-MARGIN            = 1        # capture extra so the whole busy window fits
+RESOLUTION    = "10BIT"      # "8BIT" / "10BIT" / "12BIT"
+# Pick SAMPLING_HZ for the samples/clock you want:
+#   samples_per_clock = fs / TARGET_FREQ_HZ
+# 6000E timebase law: tb 0..4 -> fs = 5e9 / 2**tb ;  tb>=5 -> fs = 156.25e6 / (tb-4)
+#
+#   want samp/clk | need fs    | set SAMPLING_HZ =  | timebase
+#   --------------+------------+--------------------+---------
+#      ~31        | 312.5 MS/s | 312.5e6 (current)  |   4
+#      ~62        | 625 MS/s   | 625e6              |   3
+#      ~125       | 1.25 GS/s  | 156e6*10           |   2
+#      ~250       | 2.5 GS/s   | 2.5e9              |   1
+TARGET_FREQ_HZ    = 10e6   # FPGA core clock
+TOTAL_CORE_CYCLES = 381*2  # HMAC-256 compute length (5 SHA-256 blocks ~ 381 clks)
+SAMPLING_HZ       = 156e6*10  # desired sampling rate 
+MARGIN            = 1       # capture extra so the whole busy window fits
 
 # channel A = power
-A_COUPLING    = "AC"         # "AC" / "DC" / "DC50"
-A_RANGE_V     = 0.1          # +/-100 mV  (MUST match GUI; larger = flat noise)
-A_PROBE       = 1            # chan A probe attenuation (x1, matches GUI)
+A_COUPLING    = "AC"        
+A_RANGE_V     = 0.1          
+A_PROBE       = 1           
 # channel B = trigger
-B_COUPLING    = "AC"         # DC holds the sustained busy level (AC droops it)
-B_RANGE_V     = 1            # +/-1 V
-B_THRESH_V    = 0.15         # rising-edge level, real signal is ~0.35 V peak
-B_TIMEOUT_US  = 0            # 0 = wait for the REAL edge; >0 auto-fires
-B_PROBE       = 10           # chan B probe attenuation (x10 probe, matches GUI)
+B_COUPLING    = "AC"         
+B_RANGE_V     = 1            
+B_THRESH_V    = 0.15         
+B_TIMEOUT_US  = 0            
+B_PROBE       = 10           
+    # chan B probe attenuation (x10 probe, matches GUI)
 
 CAPTURE_TIMEOUT_S = 5.0      # give up if the trigger never fires
 # ====================================================================== #

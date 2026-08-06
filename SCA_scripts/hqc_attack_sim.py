@@ -36,6 +36,25 @@ class PCOracle:
         return H.decrypt(self.sk, u, v) == self.m0
 
 
+class NoisyPCOracle(PCOracle):
+    """Exact PC oracle whose answer is corrupted by an imperfect single-trace
+    power classifier: each returned bit is FLIPPED with probability (1 - pacc),
+    modelling the measured device oracle accuracy (e.g. pacc=0.74). Errors are
+    independent per query -- which is why majority voting over R INDEPENDENT
+    chosen ciphertexts (fresh confounder each time) drives the per-bit error to
+    ~0, exactly as in Ravi et al. / Ji-Dubrova."""
+    def __init__(self, sk, pacc, m0=ZERO_MSG, seed=0):
+        super().__init__(sk, m0)
+        self.pacc = pacc
+        self._rng = random.Random(seed)
+
+    def query(self, u, v):
+        ans = super().query(u, v)
+        if self._rng.random() >= self.pacc:     # classifier error
+            return not ans
+        return ans
+
+
 # --------------------------------------------------------------------------- #
 #  Boundary RM word: decodes to symbol 0, but flipping bit `pivot` breaks it
 #  (decode != 0).  This puts one RM block exactly on its decision boundary.
@@ -53,10 +72,19 @@ def make_boundary_word(pivot, rng):
     return None
 
 
-def block_break_word(rng):
-    """A 384-bit word that RM-decodes to a NON-zero symbol (a hard filler error)."""
+def block_break_word(rng, high_hw=False):
+    """A 384-bit word that RM-decodes to a NON-zero symbol (a hard filler error).
+    If high_hw, bias the symbol toward maximum Hamming weight (>=7 of 8 bits set)
+    so that a decode FAILURE returns high-HW message symbols -- this stabilises
+    the failure class near maximum HW and shrinks the low-HW collision tail with
+    the HW~=0 success class (fix #7+)."""
     while True:
-        sym = rng.randrange(1, 256)
+        if high_hw:
+            # symbols with popcount 7 or 8: {0xFF} U {0xFF ^ (1<<b)}
+            cand = [0xFF] + [0xFF ^ (1 << b) for b in range(8)]
+            sym = cand[rng.randrange(len(cand))]
+        else:
+            sym = rng.randrange(1, 256)
         blk = H.rm_encode_byte(sym)
         if H.rm_decode_block(blk) == sym:
             return blk
@@ -69,13 +97,25 @@ def block_break_word(rng):
 #  Then the total RS error count is 15 or 16 depending on whether the pivot
 #  bit gets flipped by trunc(u*y).  Returns (v, pivot_global_position).
 # --------------------------------------------------------------------------- #
-def build_query_v(swing_block, pivot, rng):
+def build_query_v(swing_block, pivot, rng, filler_region="any", high_hw=False):
     v = 0
-    # choose RS_T filler blocks distinct from the swing block
-    candidates = [b for b in range(N1) if b != swing_block]
-    fillers = rng.sample(candidates, RS_T)
+    # choose RS_T filler blocks distinct from the swing block.
+    # filler_region "sys" (fix #7) confines fillers to the RS systematic region
+    # [0,K1) so a decode FAILURE returns high-Hamming-weight message symbols,
+    # pushing the failure class away from the HW~=0 success class and widening
+    # the single-query oracle margin (measured: d' 0.92 -> 1.40, acc 72% -> 79%).
+    # high_hw additionally forces each filler symbol to popcount>=7 (fix #7+),
+    # maximising and stabilising the failure-class HW.
+    if filler_region == "sys":
+        candidates = [b for b in range(H.K1) if b != swing_block]
+    elif filler_region == "parity":
+        candidates = [b for b in range(H.K1, N1) if b != swing_block]
+    else:
+        candidates = [b for b in range(N1) if b != swing_block]
+    k = min(RS_T, len(candidates))
+    fillers = rng.sample(candidates, k)
     for b in fillers:
-        v |= block_break_word(rng) << (b * N2)
+        v |= block_break_word(rng, high_hw=high_hw) << (b * N2)
     w = make_boundary_word(pivot, rng)
     if w is None:
         return None, None
@@ -228,14 +268,21 @@ def main():
     ap.add_argument("--nnon", type=int, default=40)
     ap.add_argument("--mode", choices=["scores", "recover", "coeff"], default="coeff")
     ap.add_argument("--R", type=int, default=15, help="reps for full recovery")
+    ap.add_argument("--pacc", type=float, default=1.0,
+                    help="single-trace power-oracle accuracy (e.g. 0.74). "
+                         "1.0 = exact oracle; <1 flips each answer w.p. (1-pacc).")
     ap.add_argument("--scan", type=int, default=1200,
                     help="positions to scan in recover mode (includes all true support)")
     args = ap.parse_args()
 
     random.seed(args.seed)
     sk = H.keygen()
-    oracle = PCOracle(sk)
-    print(f"HQC-128 attack sim  (N={N}, weight(y)={len(sk['ypos'])}, seed={args.seed})")
+    if args.pacc >= 1.0:
+        oracle = PCOracle(sk)
+    else:
+        oracle = NoisyPCOracle(sk, args.pacc, seed=args.seed + 42)
+    print(f"HQC-128 attack sim  (N={N}, weight(y)={len(sk['ypos'])}, seed={args.seed}, "
+          f"oracle_acc={args.pacc})")
 
     if args.mode == "coeff":
         print("Single-coefficient recovery (proof of concept -- one y[j] is enough):")

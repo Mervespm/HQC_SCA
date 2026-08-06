@@ -1,0 +1,42 @@
+{
+  "created": "2026-08-06_13-51-37",
+  "n_samples": 2031,
+  "profile_n": 2000,
+  "n_query": 400,
+  "k_max": 16,
+  "n_poi": 40,
+  "sample_rate_hz": 156250000.0,
+  "train_acc": 0.734,
+  "results": [
+    {
+      "K": 1,
+      "acc": 0.7775,
+      "recall_m0": 0.76,
+      "recall_fail": 0.795
+    },
+    {
+      "K": 2,
+      "acc": 0.7825,
+      "recall_m0": 0.76,
+      "recall_fail": 0.805
+    },
+    {
+      "K": 4,
+      "acc": 0.7825,
+      "recall_m0": 0.76,
+      "recall_fail": 0.805
+    },
+    {
+      "K": 8,
+      "acc": 0.7825,
+      "recall_m0": 0.765,
+      "recall_fail": 0.8
+    },
+    {
+      "K": 16,
+      "acc": 0.7825,
+      "recall_m0": 0.765,
+      "recall_fail": 0.8
+    }
+  ]
+}

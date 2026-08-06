@@ -42,13 +42,31 @@ RAW_RAM_BUDGET_MB = 400  # hard ceiling on the raw-pool RAM (float32). At high
 EXAMPLE_N   = 8          # example raw traces saved per class (for the trace plot)
 TEST_FRAC   = 0.2        # fraction of the raw pool used as held-out oracle test
 N_POI       = 40         # leaking samples used for the oracle projection
-M0, M1      = 0, 1       # the two message classes
+# --- message classes -------------------------------------------------- #
+# CLASS_MODE "0vFAIL" (default, CORRECT for key recovery): profile the pair the
+#   attack actually queries -- m'=0 (RS success) vs decode-FAILURE garbage.
+#   Messages are drawn from oracle_msgs.npz (make it with gen_oracle_msgs.py).
+# CLASS_MODE "0v1": legacy artificial pair m'=0 vs m'=1 (over-states the oracle).
+CLASS_MODE  = "0vFAIL"
+MSG_POOL    = os.environ.get("HQC_MSG_POOL",
+                  os.path.join(os.path.dirname(__file__), "oracle_msgs.npz"))
+M0, M1      = 0, 1        # only used when CLASS_MODE == "0v1"
 FLUSH_EVERY = 1000       # write CSVs to disk every this many traces (crash-safe)
 SAVE_RAW_NPZ = False     # dump the raw pool as float32 .npz? OFF by default --
                          # at 50k samples/trace this file is huge. CSVs already
                          # hold everything the plots need. Turn on only if small.
 OUT_ROOT    = os.path.join(os.path.dirname(__file__), "PowerTrace_HQC_G")
 # ====================================================================== #
+
+
+def load_msg_pools():
+    """Return (class0_ints, class1_ints) for the current CLASS_MODE."""
+    if CLASS_MODE == "0v1":
+        return [M0], [M1]
+    d = np.load(MSG_POOL)
+    c0 = [int(h, 16) for h in d["class0"]]
+    c1 = [int(h, 16) for h in d["class1"]]
+    return c0, c1
 
 
 def effective_raw_pool(n_samples):
@@ -166,6 +184,10 @@ def main():
     if pool < RAW_POOL:
         print(f"  (RAW_POOL {RAW_POOL} capped to {pool} to stay under "
               f"{RAW_RAM_BUDGET_MB} MB at {ns} samples/trace)")
+    msgs0, msgs1 = load_msg_pools()
+    print(f"Class mode {CLASS_MODE}: class0 pool={len(msgs0)} msgs, "
+          f"class1 pool={len(msgs1)} msgs "
+          f"({'m0=0 vs decode-failure' if CLASS_MODE=='0vFAIL' else 'm0=0 vs m1=1'})")
     raw = np.empty((pool, ns), dtype=np.float32)
     labels = np.empty(pool, dtype=np.int8)
     n_raw = 0
@@ -173,13 +195,16 @@ def main():
                 sample_rate_hz=getattr(scope, "fs", None),
                 settings=dict(N_TRACES=N_TRACES, RAW_POOL=RAW_POOL,
                               raw_pool_effective=pool, N_POI=N_POI,
-                              TEST_FRAC=TEST_FRAC, M0=M0, M1=M1))
+                              TEST_FRAC=TEST_FRAC, CLASS_MODE=CLASS_MODE,
+                              class0="m'=0 (RS success)" if CLASS_MODE == "0vFAIL" else "m'=0",
+                              class1="decode-failure garbage" if CLASS_MODE == "0vFAIL" else "m'=1"))
 
     try:
         for i in tqdm(range(N_TRACES), desc="collect"):
             coin = random.randint(0, 1)
+            mprime = random.choice(msgs0 if coin == 0 else msgs1)
             scope.arm()
-            run_one_g(target, M0 if coin == 0 else M1)
+            run_one_g(target, mprime)
             trace, _ = scope.read()
             tv.addTrace(trace, coin)
             if n_raw < pool:              # keep a raw pool for template/examples

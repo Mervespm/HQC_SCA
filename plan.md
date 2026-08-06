@@ -94,3 +94,48 @@ Keccak-absorb samples → that is the PC-oracle leakage result.
   sequencer + register map accordingly.
 - Anaconda is approved for Python lib management (per user).
 - Do NOT modify the HQC reference RTL; only wrap it.
+
+---
+
+## Oracle & key-recovery campaign — STATUS (updated 2026-08-06)
+
+### Honest re-profiling (the central correction)
+The paper oracle must profile the **natural HQC class pair** the attack really
+queries — `m′=0` (RS decode SUCCESS) vs decode-FAILURE garbage — NOT the
+artificial `m′=0` vs `m′=1`. Faithful profiling gives the honest single-query
+oracle **≈74 %** (was an inflated ~99 %). The ceiling is physical: ~17 % of
+decode-failures have `m′` with Hamming weight ≈ 0, indistinguishable from a
+success (the confounder `u·y` sprays the other 65 secret bits).
+
+### What raises accuracy (measured, device-grounded)
+| lever | effect | verdict |
+|---|---|---|
+| same-ciphertext averaging | FLAT (74.5→73.8 %, twice on device) | ❌ dead end (noise-free device) |
+| better classifier / preprocessing | ties ~73 % | ❌ dead end |
+| **fix #7 ciphertext design (systematic-region fillers)** | oracle 74→**76 %**, \|t\| 13.3→16.8 | ✅ device-confirmed |
+| **majority vote over R independent ciphertexts** | per-bit → ≥99.9 %, full key ~99 % | ✅ the real amplifier |
+| **soft-LLR combining vs hard vote** | ~40 % fewer queries (R 51→31 @p=0.74) | ✅ new contribution |
+
+### The three accuracy numbers (never conflate)
+1. single-**trace** oracle **≈74–76 %** (one query),
+2. per-**bit** after voting **≥99.9 %**,
+3. full-**key** **≈99 %** at R≈31 (soft) / R≈51 (hard) → ~2,700–4,700 queries,
+   same order as Ravi et al. Kyber (~2,100–2,900).
+
+### Artifacts (SCA_scripts/paper_results/)
+`paper_key_results.csv` (+`.md`) — master table · `fix7_device.csv` — device A/B ·
+`fix7_construction.csv` — offline construction sweep · `soft_vs_hard.csv`+`.png` —
+amplification. Honest figures in `HQC_SCA/honest_figs/`. Narrative:
+`HONEST_ORACLE_SCENARIO.md`.
+
+### Scripts added
+`gen_oracle_msgs.py` (--filler_region/--high_hw), `fix7_construction.py`,
+`fix7_device_ab.py`, `soft_vs_hard.py`, `oracle_repeat_test.py`,
+`oracle_boost.py`, `consolidate_results.py`; `hqc_attack_sim.py`
+(NoisyPCOracle + fix #7 construction), `learning_curve.py` (0vFAIL fix).
+
+### Remaining / optional
+- 3-way device A/B (baseline/sys/**maxhw**) to confirm whether max-Hamming-weight
+  fillers beat plain fix #7 (offline model says slightly worse; device decides).
+- Higher-sample-rate capture (1250 MS/s) to expose finer per-word m′ leakage.
+- Full-decap hardware target (currently G-only isolation, justified via RTL).

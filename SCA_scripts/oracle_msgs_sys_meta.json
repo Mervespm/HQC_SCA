@@ -1,0 +1,13 @@
+{
+  "n_per_class": 500,
+  "seed": 1,
+  "class0": "m'=0 success (y=0 query outputs)",
+  "class1": "decode-failure garbage (y=1 query outputs)",
+  "class0_hw_mean": 20.552,
+  "class0_hw_max": 81,
+  "class0_frac_zero": 0.68,
+  "class1_hw_mean": 54.446,
+  "class1_hw_sd": 24.305206931848986,
+  "class1_hw_min": 0,
+  "class1_hw_max": 82
+}

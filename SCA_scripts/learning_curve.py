@@ -122,13 +122,35 @@ def load_pool(path):
     return d[key].astype(np.float64), d[lkey].astype(np.int8)
 
 
+def _load_0vfail_pools():
+    """Load the CORRECT recovery-oracle message pools (m'=0 vs decode-failure)
+    from oracle_msgs.npz (built by gen_oracle_msgs.py). Falls back to the legacy
+    artificial 0v1 pair only if the pool file is missing."""
+    pool_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "oracle_msgs.npz")
+    if not os.path.exists(pool_path):
+        print("  WARNING: oracle_msgs.npz not found -> falling back to the "
+              "ARTIFICIAL 0v1 pair (over-states the oracle). Run "
+              "gen_oracle_msgs.py first for the honest 0vFAIL classes.")
+        return None, None
+    d = np.load(pool_path)
+    c0 = [int(h, 16) for h in d["class0"]]
+    c1 = [int(h, 16) for h in d["class1"]]
+    print(f"  0vFAIL pools: class0={len(c0)} msgs (m'=0 success), "
+          f"class1={len(c1)} msgs (decode-failure garbage)")
+    return c0, c1
+
+
 def capture_pool(n):
-    """Capture n labelled traces live on the CW310 (imports device libs here so
-    the offline --npz path needs no chipwhisperer/picosdk)."""
+    """Capture n labelled traces live on the CW310, drawing messages from the
+    CORRECT recovery-oracle classes (m'=0 vs decode-failure) so the learning
+    curve reflects the real attack -- NOT the artificial m'=0/m'=1 pair.
+    (Device libs imported here so the offline --npz path needs no chipwhisperer.)"""
     import random
     from tqdm import tqdm
     from cw310_program_test import program_cw310, run_one_g
     from pico_scope import Scope
+    msgs0, msgs1 = _load_0vfail_pools()
     target = program_cw310()
     scope = Scope()
     ns = scope.n_samples
@@ -137,7 +159,11 @@ def capture_pool(n):
     y = np.empty(n, dtype=np.int8)
     for i in tqdm(range(n), desc="pool"):
         coin = random.randint(0, 1)
-        scope.arm(); run_one_g(target, coin)
+        if msgs0 is None:                       # legacy artificial fallback
+            mprime = coin
+        else:
+            mprime = random.choice(msgs0 if coin == 0 else msgs1)
+        scope.arm(); run_one_g(target, mprime)
         tr, _ = scope.read()
         X[i] = tr; y[i] = coin
     scope.close()

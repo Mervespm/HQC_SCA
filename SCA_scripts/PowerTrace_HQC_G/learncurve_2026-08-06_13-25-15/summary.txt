@@ -1,0 +1,5 @@
+=== minimum training traces (single-trace oracle) ===
+  >=   90.0% : not reached in this pool
+  >=   99.0% : not reached in this pool
+  >=   99.9% : not reached in this pool
+  >=  100.0% : not reached in this pool

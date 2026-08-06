@@ -1,0 +1,23 @@
+{
+  "created": "2026-08-06_13-13-58",
+  "n_samples": 2031,
+  "target": "HQC-G (SHAKE256)",
+  "sample_rate_hz": 156250000.0,
+  "settings": {
+    "N_TRACES": 60000,
+    "RAW_POOL": 2000,
+    "raw_pool_effective": 2000,
+    "N_POI": 40,
+    "TEST_FRAC": 0.2,
+    "CLASS_MODE": "0vFAIL",
+    "class0": "m'=0 (RS success)",
+    "class1": "decode-failure garbage"
+  },
+  "n_traces_collected": 3411,
+  "n_fixed": 1700,
+  "n_random": 1711,
+  "peak_abs_t": 26.64230344804624,
+  "peak_t_sample": 595,
+  "oracle_accuracy": 0.73,
+  "n_poi": 40
+}
