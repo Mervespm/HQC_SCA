@@ -135,7 +135,13 @@ amplification. Honest figures in `HQC_SCA/honest_figs/`. Narrative:
 (NoisyPCOracle + fix #7 construction), `learning_curve.py` (0vFAIL fix).
 
 ### Remaining / optional
-- 3-way device A/B (baseline/sys/**maxhw**) to confirm whether max-Hamming-weight
-  fillers beat plain fix #7 (offline model says slightly worse; device decides).
-- Higher-sample-rate capture (1250 MS/s) to expose finer per-word m′ leakage.
 - Full-decap hardware target (currently G-only isolation, justified via RTL).
+
+### Settled dead ends (do not revisit)
+- **max-Hamming-weight fillers** (`--high_hw`): strongest leak (\|t\|=24.5) but
+  oracle 74.2 %, tied with baseline — raising failure HW also raises success HW,
+  confounder overlap unchanged. fix #7 sys-region (76 %) is the ceiling.
+- **Higher sample rate** (1250 MS/s / 95 250 samples): no gain over 156 MS/s.
+- **Same-ciphertext averaging**, **classifier/preprocessing tweaks**: no gain.
+- **Artificial m'=0 vs m'=1 pair** (`oracle_test.py`, `M0,M1=0,1`): hits ~100 %
+  but is NOT the attack-realistic oracle — must not be used as the paper number.

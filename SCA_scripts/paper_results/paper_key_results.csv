@@ -1,13 +1,14 @@
 metric,value,unit,source,note
-single_query_oracle_acc_baseline,0.7400,fraction,fix7_device.csv,"device CW310 HQC-G, m'=0 vs decode-failure, fillers anywhere"
-peak_tvla_t_baseline,13.300,abs_t,fix7_device.csv,"Welch |t|, baseline ciphertext"
+single_query_oracle_acc_baseline,0.7440,fraction,fix7_device.csv,"device CW310 HQC-G, m'=0 vs decode-failure, fillers anywhere"
+peak_tvla_t_baseline,14.216,abs_t,fix7_device.csv,"Welch |t|, baseline ciphertext"
 single_query_oracle_acc_fix7,0.7600,fraction,fix7_device.csv,"device CW310 HQC-G, fix #7 systematic-region fillers"
-peak_tvla_t_fix7,16.776,abs_t,fix7_device.csv,"Welch |t|, fix #7 ciphertext (stronger leak)"
+peak_tvla_t_fix7,17.068,abs_t,fix7_device.csv,"Welch |t|, fix #7 ciphertext (stronger leak)"
 boundary_word_success_rate,0.6000,fraction,fix7_construction.csv,make_boundary_word() probeable-pivot rate (40% unprobeable)
-model_oracle_acc_baseline_RS_T_any,0.7250,fraction,fix7_construction.csv,"HW-model acc; d'=0.9249, class0 HW 8.580, class1 HW 18.760"
-model_oracle_acc_RS_T_sys,0.7900,fraction,fix7_construction.csv,"HW-model acc; d'=1.4033, class0 HW 14.830, class1 HW 51.990"
-model_oracle_acc_RS_T_parity,0.7150,fraction,fix7_construction.csv,"HW-model acc; d'=0.7948, class0 HW 1.700, class1 HW 3.400"
-model_oracle_acc_max_sys_fillers,0.7600,fraction,fix7_construction.csv,"HW-model acc; d'=1.2223, class0 HW 15.270, class1 HW 48.980"
+model_oracle_acc_baseline_RS_T_any,0.7250,fraction,fix7_construction.csv,"HW-model acc; d'=0.9455, class0 HW 8.150, class1 HW 18.733"
+model_oracle_acc_RS_T_sys,0.7583,fraction,fix7_construction.csv,"HW-model acc; d'=1.2393, class0 HW 18.683, class1 HW 52.117"
+model_oracle_acc_RS_T_parity,0.7292,fraction,fix7_construction.csv,"HW-model acc; d'=0.9152, class0 HW 1.167, class1 HW 2.942"
+model_oracle_acc_max_sys_fillers,0.7750,fraction,fix7_construction.csv,"HW-model acc; d'=1.3178, class0 HW 19.392, class1 HW 54.025"
+model_oracle_acc_sys_maxhw,0.7500,fraction,fix7_construction.csv,"HW-model acc; d'=1.1725, class0 HW 34.967, class1 HW 90.150"
 class0_success_HW_mean_baseline,8.1,bits,oracle_msgs_meta.json,success m' Hamming weight (128-bit)
 class1_failure_HW_mean_baseline,19.73,bits,oracle_msgs_meta.json,decode-failure m' Hamming weight (128-bit)
 class0_success_HW_mean_fix7_sys,20.55,bits,oracle_msgs_sys_meta.json,success m' Hamming weight (128-bit)

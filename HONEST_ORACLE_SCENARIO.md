@@ -203,6 +203,21 @@ traces and is discarded.*
 
 ![Soft vs hard amplification](../SCA_scripts/paper_results/soft_vs_hard.png)
 
+**Ceiling is physical, not signal-strength — the maxhw dead end (device-proven).**
+Pushing the failure garbage to *maximum* Hamming weight (`--high_hw`, filler
+symbols popcount ≥ 7) produces the **strongest leak of all (peak |t| = 24.5)** but
+does **not** improve the oracle (74.2 %, statistically tied with baseline). Forcing
+max HW also raises the *success*-class HW, so the ~17 % HW≈0 confounder overlap —
+the true limiter — is unchanged. Confirmed on the CW310 even at 1250 MS/s /
+95 250 samples (higher sample rate also gave no gain). **fix #7 sys-region (76 %)
+is the ceiling; more leakage ≠ a better oracle when class overlap is the limit.**
+
+| construction | peak \|t\| | single-query oracle |
+|---|---|---|
+| baseline (fillers anywhere) | 14.2 | 74.4 % |
+| **fix #7 sys-region** | 17.1 | **76.0 %** ✅ |
+| sys + max-HW fillers | **24.5** | 74.2 % ❌ (tied w/ baseline) |
+
 ---
 
 ## 4. Figure-by-figure change list
