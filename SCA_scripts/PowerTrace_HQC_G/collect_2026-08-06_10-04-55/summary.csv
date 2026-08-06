@@ -1,0 +1,13 @@
+key,value
+created,2026-08-06_10-04-55
+n_samples,25000
+target,HQC-G (SHAKE256)
+sample_rate_hz,1250000000.0
+settings,{'N_TRACES': 60000, 'RAW_POOL': 6000, 'raw_pool_effective': 4194, 'N_POI': 40, 'TEST_FRAC': 0.2, 'M0': 0, 'M1': 1}
+n_traces_collected,1911
+n_fixed,978
+n_random,933
+peak_abs_t,22.502758846948346
+peak_t_sample,10388
+oracle_accuracy,1.0
+n_poi,40
