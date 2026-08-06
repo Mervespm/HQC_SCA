@@ -2,10 +2,11 @@
 """Plot HQC-G leakage results from the CSVs written by collect_data.py.
 
 This needs ONLY numpy + matplotlib -- NO device, NO chipwhisperer, NO picosdk.
-Run it anywhere (e.g. after you no longer have the CW310), pointing it at a
-collect_* folder you committed to GitHub:
+Run it anywhere (e.g. after you no longer have the CW310).
 
-    python plot_from_csv.py PowerTrace_HQC_G/collect_2026-08-05_18-00-00
+    python plot_from_csv.py                       # auto-plot the NEWEST collect_* folder
+    python plot_from_csv.py <collect_folder>      # plot a specific folder
+    python plot_from_csv.py --all                 # plot EVERY collect_* folder
 
 It writes PNGs next to the CSVs:
     tvla_first_order.png     first-order Welch t vs sample (with +/-4.5 lines)
@@ -114,29 +115,68 @@ def plot_oracle(d):
     print(f"  oracle single-trace accuracy = {acc*100:.2f}%")
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("usage: python plot_from_csv.py <collect_folder>")
-        print("  (pass the FOLDER a run wrote, not an individual .csv file)")
-        sys.exit(1)
-    d = sys.argv[1]
-    # Be forgiving: if the user pointed at a file inside the folder, use its dir.
-    if os.path.isfile(d):
+def plot_folder(d):
+    """Render all PNGs for one collect folder."""
+    if os.path.isfile(d):                 # forgiving: a file -> use its dir
         d = os.path.dirname(d)
     if not os.path.isdir(d):
         print(f"error: not a folder: {d}")
-        sys.exit(1)
-
+        return
+    print(f"Plotting {d}")
     tvla_csv = os.path.join(d, "tvla_curve.csv")
     if os.path.exists(tvla_csv):
         header, data = load_csv(tvla_csv)
         plot_tvla(d, header, data)
         plot_diff(d, header, data)
     else:
-        print(f"note: no tvla_curve.csv in {d} -- skipping TVLA/diff plots")
+        print(f"  note: no tvla_curve.csv -- skipping TVLA/diff plots")
     plot_examples(d)
     plot_oracle(d)
-    print(f"PNGs written to {d}")
+    print(f"  PNGs written to {d}")
+
+
+# folders written by collect_data.py are named collect_<timestamp>; the default
+# root is the PowerTrace_HQC_G dir next to this script.
+DEFAULT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "PowerTrace_HQC_G")
+
+
+def collect_folders(root=DEFAULT_ROOT):
+    """All collect_* folders under `root`, oldest -> newest.
+
+    Sorted by the timestamp in the FOLDER NAME (collect_<YYYY-MM-DD_HH-MM-SS>),
+    which reflects capture time -- unlike mtime, which re-plotting would bump.
+    """
+    if not os.path.isdir(root):
+        return []
+    names = [n for n in os.listdir(root)
+             if n.startswith("collect_") and os.path.isdir(os.path.join(root, n))]
+    return [os.path.join(root, n) for n in sorted(names)]
+
+
+def main():
+    args = [a for a in sys.argv[1:]]
+    if "--all" in args:                   # plot every collect_* folder
+        folders = collect_folders()
+        if not folders:
+            print(f"no collect_* folders under {DEFAULT_ROOT}")
+            sys.exit(1)
+        for d in folders:
+            plot_folder(d)
+        return
+    if args:                              # explicit folder (or file) given
+        plot_folder(args[0])
+        return
+    # no argument -> auto-pick the NEWEST collect_* folder
+    folders = collect_folders()
+    if not folders:
+        print(f"no collect_* folders under {DEFAULT_ROOT}")
+        print("usage: python plot_from_csv.py [<collect_folder> | --all]")
+        sys.exit(1)
+    newest = folders[-1]
+    print(f"(no folder given -> using newest: {os.path.basename(newest)})")
+    plot_folder(newest)
+
 
 
 if __name__ == "__main__":

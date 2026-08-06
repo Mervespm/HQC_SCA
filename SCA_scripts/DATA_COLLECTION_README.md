@@ -45,7 +45,9 @@ plots need).
 Only needs `numpy` + `matplotlib`:
 
 ```powershell
-python plot_from_csv.py PowerTrace_HQC_G/collect_<date>
+python plot_from_csv.py                          # newest collect_* folder, automatically
+python plot_from_csv.py PowerTrace_HQC_G/collect_<date>   # a specific folder
+python plot_from_csv.py --all                    # every collect_* folder
 ```
 
 Produces, next to the CSVs:
