@@ -117,11 +117,23 @@ def plot_oracle(d):
 def main():
     if len(sys.argv) < 2:
         print("usage: python plot_from_csv.py <collect_folder>")
+        print("  (pass the FOLDER a run wrote, not an individual .csv file)")
         sys.exit(1)
     d = sys.argv[1]
-    header, data = load_csv(os.path.join(d, "tvla_curve.csv"))
-    plot_tvla(d, header, data)
-    plot_diff(d, header, data)
+    # Be forgiving: if the user pointed at a file inside the folder, use its dir.
+    if os.path.isfile(d):
+        d = os.path.dirname(d)
+    if not os.path.isdir(d):
+        print(f"error: not a folder: {d}")
+        sys.exit(1)
+
+    tvla_csv = os.path.join(d, "tvla_curve.csv")
+    if os.path.exists(tvla_csv):
+        header, data = load_csv(tvla_csv)
+        plot_tvla(d, header, data)
+        plot_diff(d, header, data)
+    else:
+        print(f"note: no tvla_curve.csv in {d} -- skipping TVLA/diff plots")
     plot_examples(d)
     plot_oracle(d)
     print(f"PNGs written to {d}")
