@@ -50,10 +50,11 @@ repo** — so with no device you can re-plot or re-analyse any of them. Figures 
 single pool below by `plot_paper_figs.py` (x-axis in µs, peak at 8.31 µs), so they line
 up cleanly in the paper.
 
-**The one file that reproduces everything:** the real 2500-trace labelled device pool
-`learncurve_2026-08-06_10-16-15/raw_pool.npz` (committed). Figs 4–6 and any noise
-sweep are regenerated from it **offline** — e.g. stress the "too-clean" oracle with
-`learning_curve.py --npz learncurve_2026-08-06_10-16-15 --noise 3`.
+**The one file that reproduces everything (kept locally, not pushed):** the real
+2500-trace labelled device pool `learncurve_2026-08-06_10-16-15/raw_pool.npz`. It is
+**git-ignored to keep the repo light** — the committed per-figure CSVs above are enough
+to re-draw every plot. Keep the `.npz` on disk if you want to *re-analyse* raw traces
+(e.g. a noise sweep `learning_curve.py --npz learncurve_2026-08-06_10-16-15 --noise 3`).
 
 > Run commands from `SCA_scripts/` with the conda python, e.g.
 > `& C:\Users\t-mkarabulut\Miniconda3x64\envs\cwhmac\python.exe plot_from_csv.py <folder>`.
