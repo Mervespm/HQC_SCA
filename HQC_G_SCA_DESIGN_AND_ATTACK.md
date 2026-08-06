@@ -305,6 +305,113 @@ Run it:
 
 ---
 
+## 4.5 Attack walkthrough & result figures
+
+This section is the paper-facing summary: **how one secret coefficient of `y` is
+extracted, and the empirical evidence that the attack is feasible.** All figures live
+in `figures/` and are reproducible from the committed data with the scripts noted.
+
+### 4.5.1 How we extract `y`, one coefficient at a time
+
+**Goal.** Recover the static secret `y` — a length-`N=17669` binary vector of Hamming
+weight `W=66`. Learning *which 66 positions are 1* yields `y`, and then
+`x = s ⊕ h·y` gives the full private key.
+
+**Primitive.** During decapsulation the FO transform recomputes
+`G = SHAKE256(0x03 ‖ m′)`. A **single power trace of that G** tells us whether
+`m′ = 0` or `m′ ≠ 0` (Phase B, 100 %). This binary answer is a
+**plaintext-checking oracle** `O(u,v) = [m′ == 0]`.
+
+**Isolating one bit.** Decryption first forms `w = v − u·y`, then RM/RS-decodes `w`
+to `m′`. Choosing `u = Xⁱ` (a single monomial) makes `u·y` a **cyclic rotation of
+`y`**, so each `1` of `y` becomes a controllable bit-flip in the codeword.
+
+**The 15-vs-16 boundary.** HQC-128's outer Reed–Solomon code (`N1=46`, `T=15`)
+corrects ≤15 symbol-errors and fails at ≥16. We build `v` to sit exactly on that edge:
+
+```
+v = 15 filler block-errors   +   1 crafted "swing" block  (in the RS systematic region, symbol < K1=16)
+```
+
+The swing block RM-decodes to 0 on its own, but **one extra pivot-bit flip breaks it**.
+That 16th error is supplied — or not — by the secret bit `y[j]`, steered onto the pivot
+with `i = (P − j) mod N`:
+
+| secret bit | pivot flipped? | RS errors | RS result | `m′` | oracle |
+|---|---|---|---|---|---|
+| **`y[j] = 0`** | no  | 15 | corrects | `0`  | **True**  |
+| **`y[j] = 1`** | yes | 16 | **fails** | `≠0` | **False** |
+
+**Noise + full recovery.** `u·y` also sprays the other 65 ones of `y` across the
+codeword (the confounder), so a single query is noisy. We **repeat `R` times** with
+fresh randomness and take a **vote fraction** per position (`score_bit`). Because `y`
+is sparse we then simply **rank all scores and take the top-`W=66`** as the support —
+robust even to a constant bias. Software validation against `hqc128_ref.py` recovered
+**10/10 coefficients at R=31** (§4.4.1).
+
+### 4.5.2 Figures
+
+**Fig. 2 — Leakage detection (TVLA).** Fixed-vs-random `m′` Welch t-test over a full
+G execution (~19 k traces). Leakage is confined to the Keccak region and reaches
+**peak |t| ≈ 72.8 ≫ 4.5**, proving a strong, exploitable, message-dependent leak.
+
+![First-order TVLA](figures/fig2_tvla.png)
+
+**Fig. 3 — Single-trace oracle.** Projecting each held-out trace onto the LDA template
+gives two **cleanly separated** clusters (`m′=0` vs `m′≠0`) — **100 % single-trace
+accuracy**. This is the binary PC oracle.
+
+![Single-trace oracle histogram](figures/fig3_oracle_hist.png)
+
+**Fig. 4 — Minimum training traces (learning curve).** Single-trace oracle accuracy vs
+number of *profiling* traces (real device, 2500-trace pool). **≥90 % at 240 traces,
+≥99 % at 1200.** The oracle is not magically perfect — it has a realistic, quantifiable
+profiling cost.
+
+![Learning curve](figures/fig4_learning_curve.png)
+
+**Fig. 5 — Leakage is simple/localized (POI sweep).** Accuracy vs number of points-of-
+interest. It **peaks (~94 %) at only ~10–40 POIs** and *degrades* with more — the whole
+attack rides on a handful of samples; even a single POI already gives ~70 %.
+
+![POI curve](figures/fig5_poi_curve.png)
+
+**Fig. 6 — Why the oracle works (class-mean traces).** Top: full averaged trace (the
+data-independent Keccak signal dominates; yellow band marks the leak region). Middle:
+zoom where the `m′=0` (blue) and `m′≠0` (red) means **visibly diverge**, and their
+difference (green) dips ~2000 ADC exactly at the POIs. Bottom: global Welch |t|
+(peak ≈ 28) with the top POIs. **A plain difference-of-means already separates the two
+classes — no belief propagation or factor graph.**
+
+![Class-mean traces](figures/fig6_mean_traces.png)
+
+**Fig. 7 — Feasibility: success vs repetitions.** Attack-success probability vs oracle
+repetitions `R` (log₂, majority vote), for several oracle accuracies; dashed = analytic,
+shaded = Monte-Carlo band, red squares = simulated. Left: per coefficient. Right: full
+key (all `W=66`). Full-key **≥99 % at R≈5 (acc 0.99) … R≈13 (acc 0.90)**.
+
+![Success vs repetitions](figures/fig7_success_vs_trials.png)
+
+### 4.5.3 Attack cost & comparison
+
+Combining Fig. 4 (profiling) with Fig. 7 (online repetitions), full-key recovery costs:
+
+| oracle accuracy | profiling traces | R (full-key ≥99 %) | online traces (`R·W`) | **total** |
+|---|---|---|---|---|
+| 0.99 | 1200 | 5  | 330  | **~1530** |
+| 0.90 | 240  | 13 | 858  | **~1100** |
+| 0.85 | ~150 | 19 | 1254 | **~1400** |
+
+**Positioning vs. prior work.** Goy *et al.* (TCHES 2024) mount a single-trace attack on
+HQC using a full **SASCA**: per-variable templates and **belief propagation over the RS
+decoder's factor graph**. Our attack instead needs only a **binary** single-trace
+distinguisher on the FO re-encryption's `G`, turned into a chosen-ciphertext PC oracle,
+plus **majority voting** — no factor graph, no BP — recovering the full key in
+**~1000 traces**. The contribution is the **simplicity and generality** of the leakage
+path.
+
+---
+
 ## 5. How to run
 
 Environment: x64 Anaconda env (e.g. `cwhqc`) with `chipwhisperer` + `picosdk`. **Close the PicoScope GUI first** (only one process can own the scope).
@@ -348,11 +455,18 @@ Environment: x64 Anaconda env (e.g. `cwhqc`) with `chipwhisperer` + `picosdk`. *
 | `SCA_scripts/oracle_test.py` | Phase B — single-trace PC-oracle template attack |
 | `SCA_scripts/hqc128_ref.py` | Verified HQC-128 reference model (self-tested) — attack ground truth |
 | `SCA_scripts/hqc_attack_sim.py` | Phase D — software PC-oracle key-recovery sim (coeff / scores / recover) |
+| `SCA_scripts/learning_curve.py` | Minimum-traces analysis (accuracy vs #train traces & #POIs) |
+| `SCA_scripts/plot_mean_traces.py` | "Why it works" figure (class-mean overlay + Welch-\|t\| POIs) |
+| `SCA_scripts/success_vs_trials.py` | Feasibility figure (success vs oracle repetitions R) |
+| `SCA_scripts/collect_data.py` | Live capture → plot-ready CSVs (capture-now / plot-later) |
+| `SCA_scripts/plot_from_csv.py` | Offline plotting from collected CSVs (no device) |
+| `figures/fig2_tvla.png` … `fig7_success_vs_trials.png` | Paper figures (see §4.5) |
 
 ---
 
 ## 7. Key references
 - P. Ravi, S. Sinha Roy, A. Chattopadhyay, S. Bhasin. *Generic Side-channel attacks on CCA-secure lattice-based PKE and KEMs.* IACR TCHES 2020(3):307–335. — the PC-oracle attack template.
+- G. Goy, J. Maillard, P. Gaborit, A. Loiseau. *Single-trace HQC shared-key recovery with SASCA.* IACR TCHES 2024(2):64–87. — prior single-trace HQC attack via belief propagation on the RS decoder (contrast: we use only a binary oracle + majority voting).
 - HQC specification (NIST PQC) — FO transform and `G = SHAKE256(0x03 ‖ m′)`.
 - Keccak/SHA-3 (FIPS 202) — SHAKE256 sponge.
 - Reference Keccak RTL: B. Jungk; Verilog port J. Szefer; SHAKE reduction S. Deshpande (Yale).

@@ -33,8 +33,8 @@ from picosdk.functions import assert_pico_ok, mV2adc
 RESOLUTION    = "8BIT"      # "8BIT" / "10BIT" / "12BIT"
 # ---- capture length from the core-cycle count (same formula as HMAC rig) ----
 TARGET_FREQ_HZ    = 10e6     # FPGA core clock
-TOTAL_CORE_CYCLES = 200      # HQC-G Keccak compute length (~96 cyc + margin/tail)
-SAMPLING_HZ       = 156e6*12 # desired sampling rate (ACTUAL is queried from device)
+TOTAL_CORE_CYCLES = 130      # HQC-G Keccak compute length (~96 cyc + margin/tail)
+SAMPLING_HZ       = 156e6*6 # desired sampling rate (ACTUAL is queried from device)
 MARGIN            = 1        # capture extra so the whole busy window fits
 
 # channel A = power

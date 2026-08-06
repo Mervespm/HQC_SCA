@@ -35,7 +35,7 @@ from tvlaCalc import TVLACalc
 
 # =============================== SETTINGS =============================== #
 N_TRACES    = 60000      # total traces to try to collect (Ctrl+C to stop early)
-RAW_POOL    = 6000       # MAX raw traces kept in RAM for template/oracle;
+RAW_POOL    = 2000       # MAX raw traces kept in RAM for template/oracle;
                          # auto-capped further by RAW_RAM_BUDGET_MB below.
 RAW_RAM_BUDGET_MB = 400  # hard ceiling on the raw-pool RAM (float32). At high
                          # sample counts the effective pool shrinks to fit this.
