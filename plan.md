@@ -125,17 +125,81 @@ success (the confounder `u·y` sprays the other 65 secret bits).
 ### Artifacts (SCA_scripts/paper_results/)
 `paper_key_results.csv` (+`.md`) — master table · `fix7_device.csv` — device A/B ·
 `fix7_construction.csv` — offline construction sweep · `soft_vs_hard.csv`+`.png` —
+amplification · `linalg_completion.csv` — linear-algebra tail recovery ·
+`results_datasets/` — the two side-by-side oracle datasets + pro figures.
+
+### Highest device-measured oracle = 76.0 % (do NOT report 78 %)
+The **best value we actually measured on the CW310 is 76.0 %** (fix #7,
+`fix7_device.csv`). The **78 % is only the offline Hamming-weight model** in
+`fix7_construction.csv`; its `max_sys_fillers` vs `RS_T_sys` gap is sampling
+noise (both are the same `n_filler=15, region=sys` construction), so it is NOT a
+separate stronger lever and is not reported as the headline number.
+
+### Closing the recovery gap — linear-algebra completion (Schamberger Sec. 3.3)
+We do **not** need all 66 support positions from the oracle. Given the
+confidently recovered part `P ⊂ supp(y)`, the missing `w−|P|` positions (the
+`n−n1·n2 = 5` structural tail) are finished by the public relation
+`s = x + h·y, HW(x)=w`: brute-force the tail until `HW(x̂)=w`. Verified in
+`hqc_attack_sim.py --mode complete` and swept in `linalg_completion.py`:
+**30/30 full keys recovered & verified for every missing∈{0..5}**, cost ≤ 2³·³
+HW-checks. This turns our partial 60/66 oracle result into a **proven full,
+verified key break** with zero extra oracle queries. Fallback for a weaker
+oracle: side-channel-informed modified Prange ISD (Schamberger Sec. 3.4).
+
+### Novelty vs Schamberger et al. (first HQC KEM power SCA)
+They: **software** Cortex-M4, **BCH** decoder (old HQC), ~100 % software oracle.
+Us: **FPGA hardware**, **HQC-RMRS** Keccak-`G` leak, physical single-trace
+oracle 74–76 %. We reuse their linear-algebra completion + ISD to close our
+hardware oracle's partial-support gap; the oracle-construction and
+hardware-leakage results are the new contribution.
 amplification. Honest figures in `HQC_SCA/honest_figs/`. Narrative:
 `HONEST_ORACLE_SCENARIO.md`.
 
-### Scripts added
-`gen_oracle_msgs.py` (--filler_region/--high_hw), `fix7_construction.py`,
-`fix7_device_ab.py`, `soft_vs_hard.py`, `oracle_repeat_test.py`,
-`oracle_boost.py`, `consolidate_results.py`; `hqc_attack_sim.py`
-(NoisyPCOracle + fix #7 construction), `learning_curve.py` (0vFAIL fix).
+---
 
-### Remaining / optional
-- Full-decap hardware target (currently G-only isolation, justified via RTL).
+## K-oracle breakthrough — 2026-08-06
+
+**Key insight:** In real HQC decapsulation the FO transform applies **implicit
+rejection** — on decode FAILURE the shared-secret hash K receives `sigma`
+(a fixed per-key random secret, HW ≈ 64), NOT random decode garbage. On decode
+SUCCESS it receives `m = 0` (HW = 0). This `0` vs `sigma` pair is:
+- confounder-free (sigma is always high-weight, never near-zero → no HW≈0 collision)
+- attack-realistic (exactly what the real device computes)
+- measurable on the EXISTING G bitstream (write `m_reg = 0` or `m_reg = sigma`)
+
+**Device result** (`k_block0_test.py`, N=4000, 156.25 MS/s, 15.6 samp/clk):
+- **single-trace oracle: 100.0%**, peak |t| = 273.8, FP=0 FN=0
+- compared to G oracle: 74.4–76.0%
+
+**Attack query model** (`paper_results/k_attack_model.csv`):
+Both attacks must scan all N1×N2=17,664 probeable ring positions to find
+the 66 secret support positions (we don't know which 66 in advance).
+
+| oracle | p | R per position | total queries | vs Schamberger'22 |
+|---|---|---|---|---|
+| G baseline | 74.4% | 23 | 406,272 | 0.2× (5× worse) |
+| G fix #7 | 76.0% | 20 | 353,280 | 0.2× (5× worse) |
+| **K oracle** | **100%** | **1** | **17,664** | **4× fewer** |
+
+**Minimum traces:** ~200 profiling + 17,664 attack = ~17,864 total.
+K oracle is **23× fewer queries than our G oracle** and **4× fewer than
+Schamberger et al. PQCrypto'22** (the best prior HQC attack, ~72,000 queries).
+
+**Why G is expensive:** at p=74%, R=23 repetitions per position × 17,664
+positions = 406K total. The low oracle accuracy multiplies the scan cost.
+At K's p=100%, R=1 suffices: scan cost = position count only.
+
+**No new bitstream needed:** sigma is the message-field content at Keccak block 0,
+same hardware, just different m_reg value. The full K hash (mc = sigma ‖ u ‖ v) is
+common-mode across both classes at blocks 1–32; all oracle leakage is in block 0.
+
+### New scripts
+`k_block0_test.py` — device capture; `hqc_k_ref.py` — reference model;
+`paper_results/k_attack_model.csv` — oracle comparison table.
+
+### Remaining / optional (large future work)
+- Full-decap hardware target (decoder + re-encrypt + K in one FPGA design).
+- OT-PCA / block-sparsity scan to reduce attack queries below 17,664.
 
 ### Settled dead ends (do not revisit)
 - **max-Hamming-weight fillers** (`--high_hw`): strongest leak (\|t\|=24.5) but

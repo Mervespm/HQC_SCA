@@ -1,0 +1,12 @@
+metric,value
+dataset,k_block0_0_vs_sigma
+n_traces,4000
+samples,5953
+poi_k,10
+peak_abs_t,273.792
+train_acc,1.0
+test_acc,1.0
+tp,501
+tn,499
+fp,0
+fn,0

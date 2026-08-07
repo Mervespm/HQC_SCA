@@ -1,0 +1,7 @@
+missing,trials,full_key_verified,success_rate,tail_size,completion_log2_hwchecks
+0,30,30,100.0,5,0.0
+1,30,30,100.0,5,2.32
+2,30,30,100.0,5,3.32
+3,30,30,100.0,5,3.32
+4,30,30,100.0,5,2.32
+5,30,30,100.0,5,0.0

@@ -43,8 +43,8 @@ RESOLUTION    = "10BIT"      # "8BIT" / "10BIT" / "12BIT"
 #      ~125       | 1.25 GS/s  | 156e6*10           |   2
 #      ~250       | 2.5 GS/s   | 2.5e9              |   1
 TARGET_FREQ_HZ    = 10e6   # FPGA core clock
-TOTAL_CORE_CYCLES = 381*2  # HMAC-256 compute length (5 SHA-256 blocks ~ 381 clks)
-SAMPLING_HZ       = 156e6*10  # desired sampling rate 
+TOTAL_CORE_CYCLES = 381  # G Keccak window: ~48 cyc permutation + overhead (margin)
+SAMPLING_HZ       = 156.25e6  # desired sampling rate -> timebase 5 -> 15.6 samp/clk
 MARGIN            = 1       # capture extra so the whole busy window fits
 
 # channel A = power

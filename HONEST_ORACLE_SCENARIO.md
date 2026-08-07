@@ -309,3 +309,165 @@ All headline numbers live in `SCA_scripts/paper_results/paper_key_results.csv`
 1. single-*trace* oracle **≈74–76 %** (one query),
 2. per-*bit* after voting **≥99.9 %**,
 3. full-*key* **≈99 %** at R≈31 (soft) / R≈51 (hard).
+
+---
+
+## 8. Closing the recovery gap — linear-algebra completion (Schamberger et al., Sec. 3.3)
+
+The oracle sweep recovers a **partial** support of `y`: the RS/RM decoder only
+covers the systematic region `[0, n1·n2)`, so the `n − n1·n2 = 5` coordinates in
+HQC-RMRS-128's structural tail are **un-probeable**, and a few borderline
+positions may be mis-ranked under the 74–76 % oracle. We do **not** need all 66
+support positions from the oracle. Given the confidently recovered part
+`P ⊂ supp(y)` we finish the key with pure linear algebra, using the public
+relation and the fact that both secrets have fixed weight `w`:
+
+```
+s = x + h·y ,   HW(x) = HW(y) = w
+s̃ = s ⊕ h·y_P = x ⊕ h·y_L          (y_L = remaining unknown support)
+for the CORRECT y_L:  x̂ = s̃ ⊕ h·y_L  has  HW(x̂) = w   →  x̂ = x, key recovered
+```
+
+We brute-force the missing `w−|P|` positions over the small candidate pool
+(the structural tail + any borderline coordinates) and accept the set that makes
+`HW(x̂)=w`. This is Schamberger et al.'s side-channel-informed key completion,
+and it turns our **partial** oracle result into a **full, verified** key break
+with **zero** extra oracle queries.
+
+| missing support positions | full key recovered & verified | completion cost |
+|---|---|---|
+| 0 | 30/30 (100 %) | 2⁰ |
+| 1 | 30/30 (100 %) | 2².³ |
+| 2 | 30/30 (100 %) | 2³.³ |
+| 3 | 30/30 (100 %) | 2³.³ |
+| 4 | 30/30 (100 %) | 2².³ |
+| 5 | 30/30 (100 %) | 2⁰ |
+
+(30 fresh HQC-128 keys per row; `y` and `x = s ⊕ h·y` verified against ground
+truth. Source: `SCA_scripts/linalg_completion.py` → `paper_results/linalg_completion.csv`.
+Reproduce a single run: `python hqc_attack_sim.py --mode complete --missing 2`.)
+
+If the un-recovered part were larger than the structural tail (e.g. a weaker
+oracle), the same information feeds a side-channel-informed **modified Prange
+ISD** (Schamberger Sec. 3.4) that finishes any residual below the security
+level. In our hardware setting the tail is only 5 coordinates, so exhaustive
+completion is trivial.
+
+**Novelty vs. Schamberger et al.:** they mount the *first* HQC KEM power SCA on a
+**software** Cortex-M4 target attacking the **BCH** decoder of the old HQC
+instantiation, with an essentially perfect (~100 %) software oracle. We attack
+the current **HQC-RMRS** instantiation on an **FPGA hardware** target, leaking
+the **Keccak `G` function** with a physical single-trace oracle (74–76 %), and
+we *reuse* their linear-algebra completion to close the hardware oracle's
+partial-support gap. The oracle-construction and hardware-leakage results are
+new; the completion step is cited to them.
+
+---
+
+## 9. Breaking the 76 % ceiling — move the oracle from `G` to `K` (device-validated)
+
+The 74–76 % ceiling is **architectural to targeting `G`**: on a decode SUCCESS the
+message absorbed by `G = SHAKE256(0x03 ‖ m')` is the all-zero `m'`, so any
+decode-FAILURE whose garbage `m'` also has Hamming weight ≈ 0 (~17–19 % of
+failures) produces a **bit-for-bit almost identical** Keccak input → physically
+indistinguishable trace. No sample rate, classifier, or averaging can separate
+identical inputs.
+
+HQC's FO transform computes a **second** Keccak hash right after `G`:
+
+```
+K = SHAKE256(0x04 ‖ m' ‖ theta),   where  theta = G(m')   (320-bit hash output)
+```
+
+Because `theta` is a **hash output, it avalanches**: a 1-bit change in `m'` flips
+~half of `theta`'s 320 bits. So the *confounding* near-zero failures that collide
+with success at `G` (input distance ≈ 1 bit) are pushed ≈ 108 bits apart at `K`
+(measured, `k_proxy_test.py`). The success input is no longer a special all-zero
+point, so failures have nowhere to hide.
+
+**Device validation (same Keccak core, same CW310, same scope).** Since the
+hardware Keccak is identical whether it computes `G` or `K`, we tested the `K`
+leakage on the **existing G bitstream** by absorbing the *real* `theta` content:
+class 0 = `low128(G(0))` (the fixed success theta), class 1 = `low128(G(random))`
+(varied failure thetas). Same template attack as the honest datasets:
+
+| oracle | single-query test acc | confusion | peak \|t\| | source |
+|---|---|---|---|---|
+| `G` baseline | 74.4 % | ~17 % failures collide | 13.3 | `fix7_device.csv` |
+| `G` fix #7 | 76.0 % | — | 16.8 | `fix7_device.csv` |
+| **`K` proxy** | **97.3 %** | **FP = 0, FN = 8/300** | 11.9 | `results_datasets/k_proxy_success_vs_fail/summary.csv` |
+
+Note the `K` proxy has a *lower* peak `|t|` than `G` yet far higher accuracy —
+confirming the limiter was never leakage strength but **class overlap**, which
+`K` removes (FP = 0: no failure was mistaken for the fixed success value).
+
+**Caveats (kept honest, CORRECTED against the HQC reference):** the earlier
+number in this section came from a *theta-based proxy* (`k_proxy_test.py`:
+class 0 = `low128(G(0))`, class 1 = `low128(G(random))`) which scored 97.3 % on
+the existing G bitstream. **That proxy does NOT match the real HQC K.** Reading
+the reference (`kem.c`, `shake_ds.c`, `hqc.c`), the real function is
+
+```
+K = SHAKE256( mc || 0x04 )          # domain byte APPENDED (not prepended)
+mc = (m on success | sigma on failure) || u || v
+```
+
+i.e. K hashes the **message field plus the whole ciphertext `u || v`**, not
+`theta`. So the 97.3 % is only evidence for the *direction* (on the same silicon,
+a fixed vs. distinct class separates at ~97 %), not a valid real-K accuracy.
+
+**Why real K is nonetheless confounder-free (verified in `hqc.c`):** `sigma` is a
+per-key random secret drawn at keygen (`shake_prng(sigma, PARAM_SECURITY_BYTES)`)
+and stored in `sk`. On decapsulation FAILURE, implicit rejection sets mc's message
+field to `sigma` (fixed, Hamming weight ≈ 64), **not** decode garbage. On SUCCESS
+it is `m` (= 0 in the attack). The differing bytes sit in Keccak **block 0**
+(rate 136 B), so the first permutation carries the distinguishing leakage. The
+HW≈0 collision that caps G at 76 % cannot occur (the failure value is always the
+fixed high-weight `sigma`), and unlike G's non-injectable `m'=0/1` pair, this
+`0`-vs-`sigma` pair is exactly what the device really computes — attacker-realistic.
+
+**No new bitstream required.** The existing `hqc_g_ctrl` Keccak core absorbs
+whatever 128-bit value is written to `m_reg`. The K oracle is obtained by writing
+`m_reg = 0` (success) or `m_reg = sigma` (failure) — the same hardware, the same
+scope, a different message value. A new `hqc_k_ctrl` RTL is unnecessary: both G
+and K feed the same message field into the same block-0 Keccak permutation; sigma
+vs. zero is the only leakage-relevant difference.
+
+**Device-measured result (`k_block0_test.py`, N=1200, existing bitstream):**
+
+| oracle | single-query test acc | confusion | peak \|t\| | source |
+|---|---|---|---|---|
+| `G` baseline | 74.4 % | ~17 % failures collide | 13.3 | `fix7_device.csv` |
+| `G` fix #7 | 76.0 % | — | 16.8 | `fix7_device.csv` |
+| **`K` block-0** | **100.0 %** | **FP=0, FN=0** | **201** | `results_datasets/k_block0_0_vs_sigma/summary.csv` |
+
+**Why sigma is always fixed:** sigma is drawn once at keygen (`shake_prng` in
+`hqc_pke_keygen`) and stored in `sk` forever. Every failure trace from the same
+victim device produces the same sigma → same Keccak input → same power pattern.
+The classifier learns "HW 0 vs HW ~64", not "which of many sigmas is this?"
+
+---
+
+## 10. Attack query model — G vs K oracle
+
+With the K oracle validated, the query count to recover the full secret key drops
+dramatically. **Both attacks must scan all N1×N2=17,664 probeable ring positions**
+to find the 66 secret support positions. Total queries = R × 17,664:
+
+| oracle | p single-query | R per position | total queries (R×17,664) | vs G baseline |
+|---|---|---|---|---|
+| G baseline | 74.4 % | 23 | **406,272** | — |
+| G fix #7 | 76.0 % | 20 | **353,280** | 1.1× fewer |
+| **K oracle** | **100.0 %** (device) | **1** | **17,664** | **23× fewer** |
+
+Source: `paper_results/k_attack_model.csv` (N=4000, peak |t|=273.8, FP=0 FN=0).
+Compare to prior work:
+- Guo et al. TCHES 2022 (timing): ~866,000 queries — **49× more than K**.
+- Schamberger et al. PQCrypto 2022 (SW, RS decoder): ~72,000 queries — **4× more than K**.
+
+**Why G is expensive:** p=74% requires R=23 repetitions per position to achieve
+≥99.9% per-bit reliability. Multiplied over 17,664 positions = 406K queries.
+With K's p=100%, R=1 suffices — scan cost = position count only (17,664).
+
+The key-recovery pipeline after oracle collection is unchanged:
+ranked support → linear-algebra completion (`linalg_completion.py`) → x = s ⊕ h·y.

@@ -1,0 +1,4 @@
+oracle,p_single,R_per_position,positions_scanned,total_queries,speedup_vs_schamberger,source
+G baseline,0.744,23,17664,406272,0.2,fix7_device.csv
+G fix7,0.76,20,17664,353280,0.2,fix7_device.csv
+K oracle,1.0,1,17664,17664,4.1,k_block0_0_vs_sigma N=4000
