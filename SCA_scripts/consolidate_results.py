@@ -97,6 +97,18 @@ def main():
             "fraction", "soft_vs_hard.csv",
             "per-secret-bit accuracy after soft combining (approaches 1.0)")
 
+    # ---- linear-algebra completion (Schamberger Sec. 3.3) ----
+    comp = read_csv("linalg_completion.csv")
+    for r in comp:
+        add(f"full_key_verified_missing{r['missing']}",
+            f"{r['full_key_verified']}/{r['trials']}", "keys",
+            "linalg_completion.csv",
+            f"linear-algebra tail completion, {r['success_rate']}% full-key "
+            f"verified, cost 2^{r['completion_log2_hwchecks']}")
+    if comp:
+        add("structural_untprobeable_tail", comp[0]["tail_size"], "coords",
+            "linalg_completion.csv", "n - n1*n2 for HQC-RMRS-128 (tiny)")
+
     out = os.path.join(PR, "paper_key_results.csv")
     with open(out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=["metric", "value", "unit", "source", "note"])

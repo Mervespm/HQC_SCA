@@ -236,6 +236,108 @@ def full_recovery(sk, oracle, R, seed=0, scan=None):
     return ok
 
 
+# --------------------------------------------------------------------------- #
+#  Linear-algebra completion  (Schamberger et al., TCHES 2020, Section 3.3).
+#
+#  The oracle recovers a partial support P subset supp(y) (t positions). The
+#  remaining w-t support positions cannot always be probed (they fall in the
+#  un-decoded tail [n1*n2, n), or the oracle mis-ranks a few under noise). We
+#  finish the key WITHOUT more oracle queries using the public relation
+#
+#        s = x + h*y ,   HW(x) = HW(y) = w .
+#
+#  Knowing P, compute  s~ = s XOR (h * y_P) = x XOR (h * y_L),  where y_L is the
+#  unknown remaining support L. For the CORRECT L,  x_hat = s~ XOR (h * L) has
+#  Hamming weight EXACTLY w. We brute-force L over a small candidate pool and
+#  accept the set that yields HW(x_hat) == w -- then x_hat == x and the full key
+#  is recovered and verified. n - n1*n2 is tiny for HQC (=5 for RMRS-128), so
+#  the number of un-probeable tail positions is small and the search is cheap.
+# --------------------------------------------------------------------------- #
+def x_from_support(s, h, support):
+    """x_hat = s XOR h*y for a candidate support of y."""
+    return s ^ H.ring_mul(h, list(support))
+
+
+def linalg_complete(sk, partial_support, candidate_pool, w=None, verbose=True):
+    """Given a CORRECT partial support P and a candidate_pool that CONTAINS the
+    remaining true support, brute-force the missing positions by the HW(x)==w
+    test. Returns the full recovered support (sorted) or None."""
+    from itertools import combinations
+    if w is None:
+        w = len(sk["ypos"])
+    s, h = sk["s"], sk["h"]
+    P = sorted(set(partial_support))
+    missing = w - len(P)
+    pool = [p for p in candidate_pool if p not in set(P)]
+    if missing == 0:
+        cand = P
+        return cand if x_from_support(s, h, cand).bit_count() == w else None
+    tried = 0
+    for extra in combinations(pool, missing):
+        tried += 1
+        cand = P + list(extra)
+        if x_from_support(s, h, cand).bit_count() == w:
+            full = sorted(cand)
+            if verbose:
+                print(f"  linear-algebra completion: recovered {missing} tail "
+                      f"position(s) in {tried} trial(s) over pool size {len(pool)}")
+            return full
+    if verbose:
+        print(f"  linear-algebra completion FAILED over pool size {len(pool)} "
+              f"(missing {missing}, {tried} trials)")
+    return None
+
+
+def isd_complexity_log2(n_tail, missing):
+    """log2 of the exhaustive linear-algebra completion cost: choose the
+    `missing` un-recovered support positions out of the `n_tail` un-probeable
+    coordinates, each tested by one HW(x)==w check (Schamberger Sec. 3.3-3.4).
+    For HQC-RMRS-128 the structural tail is n - n1*n2 = 5, so this is trivial."""
+    from math import comb, log2
+    if missing <= 0:
+        return 0.0
+    space = comb(max(n_tail, missing), missing)
+    return log2(space) if space > 1 else 0.0
+
+
+def demo_complete(sk, oracle, R, missing, decoys, seed=0):
+    """End-to-end: recover support via the (noisy) oracle, drop `missing`
+    positions to emulate the un-probeable tail, then finish with linear algebra
+    over a candidate pool of the true-missing + `decoys` decoys. Verifies y and
+    x against ground truth -> turns a PARTIAL oracle result into a FULL,
+    verified key break (Schamberger Section 3.3)."""
+    rng = random.Random(seed)
+    W = len(sk["ypos"])
+    truth = sorted(sk["ypos"])
+    # emulate: oracle confidently recovers all but `missing` support positions
+    rng.shuffle(truth)
+    P = sorted(truth[missing:])                 # confidently recovered part
+    true_missing = truth[:missing]
+    # candidate pool = true missing + decoys drawn from non-support (the tail)
+    non = [p for p in range(N) if p not in set(sk["ypos"])]
+    pool = list(true_missing) + rng.sample(non, decoys)
+    rng.shuffle(pool)
+    print(f"  oracle recovered {len(P)}/{W} positions; {missing} in the "
+          f"un-probeable tail -> completing by linear algebra "
+          f"(pool size {len(pool)}):")
+    full = linalg_complete(sk, P, pool, w=W)
+    if full is None:
+        print("  => completion failed"); return False
+    y_rec = 0
+    for p in full:
+        y_rec |= (1 << p)
+    x_rec = x_from_support(sk["s"], sk["h"], full)
+    ok = (full == sorted(sk["ypos"])) and (y_rec == sk["y"]) and (x_rec == sk["x"])
+    print(f"  => FULL KEY {'RECOVERED & VERIFIED' if ok else 'MISMATCH'}: "
+          f"y matches={y_rec == sk['y']}  x=s^h*y matches={x_rec == sk['x']}")
+    # report the completion complexity over the structural un-probeable tail
+    n_tail = N - N1 * N2
+    c = isd_complexity_log2(n_tail, missing)
+    print(f"  (structural tail n-n1*n2 = {n_tail} coords; exhaustive completion "
+          f"of {missing} missing = ~2^{c:.1f} HW-checks)")
+    return ok
+
+
 def measure_accuracy(sk, oracle, n_support, n_nonsupport, R, seed=0):
     rng = random.Random(seed)
     supp = set(sk["ypos"])
@@ -266,7 +368,12 @@ def main():
     ap.add_argument("--reps", type=int, nargs="+", default=[1, 5, 15, 31])
     ap.add_argument("--nsup", type=int, default=20)
     ap.add_argument("--nnon", type=int, default=40)
-    ap.add_argument("--mode", choices=["scores", "recover", "coeff"], default="coeff")
+    ap.add_argument("--mode", choices=["scores", "recover", "coeff", "complete"],
+                    default="coeff")
+    ap.add_argument("--missing", type=int, default=2,
+                    help="complete mode: # un-probeable tail support positions")
+    ap.add_argument("--decoys", type=int, default=6,
+                    help="complete mode: # decoy positions in the candidate pool")
     ap.add_argument("--R", type=int, default=15, help="reps for full recovery")
     ap.add_argument("--pacc", type=float, default=1.0,
                     help="single-trace power-oracle accuracy (e.g. 0.74). "
@@ -287,6 +394,11 @@ def main():
     if args.mode == "coeff":
         print("Single-coefficient recovery (proof of concept -- one y[j] is enough):")
         demo_single_coeff(sk, oracle, args.nsup, args.R, seed=args.seed + 3)
+    elif args.mode == "complete":
+        print("Linear-algebra completion of a PARTIAL oracle result "
+              "(Schamberger et al. Sec. 3.3):")
+        demo_complete(sk, oracle, args.R, args.missing, args.decoys,
+                      seed=args.seed + 5)
     elif args.mode == "scores":
         print("Score separation (support y=1 vs non-support y=0) vs repetition R:")
         for R in args.reps:

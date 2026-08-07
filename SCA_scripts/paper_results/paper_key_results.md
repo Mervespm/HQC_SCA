@@ -10,8 +10,8 @@
 | model_oracle_acc_RS_T_parity | 0.7292 | fraction | HW-model acc; d'=0.9152, class0 HW 1.167, class1 HW 2.942 |
 | model_oracle_acc_max_sys_fillers | 0.7750 | fraction | HW-model acc; d'=1.3178, class0 HW 19.392, class1 HW 54.025 |
 | model_oracle_acc_sys_maxhw | 0.7500 | fraction | HW-model acc; d'=1.1725, class0 HW 34.967, class1 HW 90.150 |
-| class0_success_HW_mean_baseline | 8.1 | bits | success m' Hamming weight (128-bit) |
-| class1_failure_HW_mean_baseline | 19.73 | bits | decode-failure m' Hamming weight (128-bit) |
+| class0_success_HW_mean_baseline | 7.7 | bits | success m' Hamming weight (128-bit) |
+| class1_failure_HW_mean_baseline | 19.19 | bits | decode-failure m' Hamming weight (128-bit) |
 | class0_success_HW_mean_fix7_sys | 20.55 | bits | success m' Hamming weight (128-bit) |
 | class1_failure_HW_mean_fix7_sys | 54.45 | bits | decode-failure m' Hamming weight (128-bit) |
 | R_for_99pct_key_hard_p0.74 | 51 | queries/bit | min R for >=99% full-key at oracle p=0.74, d'=1.28669 |
@@ -19,3 +19,10 @@
 | R_for_99pct_key_hard_p0.76 | 41 | queries/bit | min R for >=99% full-key at oracle p=0.76, d'=1.41261 |
 | R_for_99pct_key_soft_p0.76 | 31 | queries/bit | min R for >=99% full-key at oracle p=0.76, d'=1.41261 |
 | per_bit_acc_after_voting_max | 1.0 | fraction | per-secret-bit accuracy after soft combining (approaches 1.0) |
+| full_key_verified_missing0 | 30/30 | keys | linear-algebra tail completion, 100.0% full-key verified, cost 2^0.0 |
+| full_key_verified_missing1 | 30/30 | keys | linear-algebra tail completion, 100.0% full-key verified, cost 2^2.32 |
+| full_key_verified_missing2 | 30/30 | keys | linear-algebra tail completion, 100.0% full-key verified, cost 2^3.32 |
+| full_key_verified_missing3 | 30/30 | keys | linear-algebra tail completion, 100.0% full-key verified, cost 2^3.32 |
+| full_key_verified_missing4 | 30/30 | keys | linear-algebra tail completion, 100.0% full-key verified, cost 2^2.32 |
+| full_key_verified_missing5 | 30/30 | keys | linear-algebra tail completion, 100.0% full-key verified, cost 2^0.0 |
+| structural_untprobeable_tail | 5 | coords | n - n1*n2 for HQC-RMRS-128 (tiny) |
